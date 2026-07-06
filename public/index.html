@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distributed URL Shortener - Bitly Clone Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Background Glow Effects -->
+  <div class="glow-bg">
+    <div class="glow-sphere sphere-1"></div>
+    <div class="glow-sphere sphere-2"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="brand">
+        <i class="fa-solid fa-link brand-icon"></i>
+        <div>
+          <h1>Shortify</h1>
+          <p>Distributed URL Shortener</p>
+        </div>
+      </div>
+      <div class="auth-status" id="auth-status-container">
+        <!-- Will be populated dynamically -->
+        <button id="show-auth-modal-btn" class="btn btn-secondary">
+          <i class="fa-solid fa-user-lock"></i> Login / Register
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid Layout -->
+    <main class="dashboard-grid">
+      <!-- Left Panel: Shortener Console -->
+      <section class="panel glass shortener-console">
+        <div class="panel-header">
+          <i class="fa-solid fa-wand-magic-sparkles panel-icon text-cyan"></i>
+          <h2>Shorten URL</h2>
+        </div>
+        
+        <form id="shorten-form" class="console-form">
+          <div class="form-group">
+            <label for="original-url"><i class="fa-solid fa-globe"></i> Long URL</label>
+            <input type="url" id="original-url" placeholder="https://example.com/very/long/path/to/resource" required>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="custom-alias"><i class="fa-solid fa-pen-nib"></i> Custom Alias (Optional)</label>
+              <input type="text" id="custom-alias" placeholder="e.g. promo2026" minlength="3" maxlength="30">
+            </div>
+            <div class="form-group">
+              <label for="expires-at"><i class="fa-solid fa-hourglass-half"></i> Expiry (Optional)</label>
+              <input type="datetime-local" id="expires-at">
+            </div>
+          </div>
+          
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-compress"></i> Generate Short Link
+          </button>
+        </form>
+
+        <!-- Result Box -->
+        <div id="result-box" class="result-box hidden glass-inset">
+          <h3>Link Created Successfully!</h3>
+          <div class="copy-field">
+            <input type="text" id="shortened-url" readonly>
+            <button id="copy-btn" class="btn btn-cyan"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <p class="expiry-notice" id="result-expiry"></p>
+        </div>
+      </section>
+
+      <!-- Center Panel: Backend Architecture Spotlight -->
+      <section class="panel glass architecture-spotlight">
+        <div class="panel-header">
+          <i class="fa-solid fa-microchip panel-icon text-pink"></i>
+          <h2>Backend Performance Spotlight</h2>
+        </div>
+        <div class="arch-flow">
+          <div class="arch-card step-1">
+            <div class="card-icon"><i class="fa-solid fa-arrow-pointer"></i></div>
+            <h4>1. Redirect Hit</h4>
+            <p>User clicks <code>/:shortCode</code></p>
+          </div>
+          <div class="arch-connector"><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="arch-card step-2 highlighted">
+            <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+            <h4>2. Redis Cache Lookup</h4>
+            <p>O(1) Memory Check<br><span class="badge badge-success">Hit: Redirect immediately (&lt;1ms)</span></p>
+          </div>
+          <div class="arch-connector"><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="arch-card step-3">
+            <div class="card-icon"><i class="fa-solid fa-database"></i></div>
+            <h4>3. Postgres DB Fallback</h4>
+            <p>Indexed search on code<br>Lazy deletes expired keys</p>
+          </div>
+          <div class="arch-connector"><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="arch-card step-4">
+            <div class="card-icon"><i class="fa-solid fa-chart-line"></i></div>
+            <h4>4. Async Click logs</h4>
+            <p>Analytics stored out-of-band to prevent latency</p>
+          </div>
+        </div>
+        <div class="arch-explanation">
+          <p><strong>Why this project is highly performant:</strong> Every link lookup hits a high-speed memory cache first. Click analytics write operations are run asynchronously so clients redirect immediately without waiting for database writes. Databases contain explicit indexes on search columns.</p>
+        </div>
+      </section>
+
+      <!-- Bottom Panel: My Short Links / Dashboard -->
+      <section class="panel glass dashboard-panel full-width">
+        <div class="dashboard-header">
+          <div class="panel-header">
+            <i class="fa-solid fa-table-list panel-icon text-purple"></i>
+            <h2>My Created Links</h2>
+          </div>
+          <button id="refresh-links-btn" class="btn btn-secondary btn-sm hidden">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </div>
+
+        <div id="unauthorized-message" class="info-placeholder">
+          <i class="fa-solid fa-lock placeholder-icon"></i>
+          <h3>User Session Required</h3>
+          <p>Please register or login to save links, view analytics, and access the click dashboard.</p>
+        </div>
+
+        <div id="authorized-dashboard" class="hidden">
+          <div class="dashboard-split">
+            <!-- URL Table List -->
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Short Link</th>
+                    <th>Original Destination</th>
+                    <th>Clicks</th>
+                    <th>Expires</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="links-table-body">
+                  <!-- Will be populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Analytics Inspector Panel -->
+            <div class="analytics-inspector glass-inset" id="analytics-inspector">
+              <div class="inspector-header">
+                <h3><i class="fa-solid fa-chart-pie text-cyan"></i> Analytics Inspector</h3>
+                <span class="muted" id="selected-code-label">Select a link from the table to load analytics</span>
+              </div>
+              
+              <div id="analytics-loader" class="hidden text-center">
+                <i class="fa-solid fa-spinner fa-spin loader-icon"></i>
+                <p>Loading analytics data...</p>
+              </div>
+
+              <div id="analytics-data-container" class="hidden">
+                <div class="summary-metrics">
+                  <div class="metric-card">
+                    <span class="metric-label">Total Redirects</span>
+                    <span class="metric-value" id="metric-total-clicks">0</span>
+                  </div>
+                  <div class="metric-card">
+                    <span class="metric-label">Remaining TTL</span>
+                    <span class="metric-value" id="metric-ttl">Never Expires</span>
+                  </div>
+                </div>
+
+                <div class="charts-grid">
+                  <div class="chart-container">
+                    <h5>Clicks Over Time</h5>
+                    <canvas id="clicks-time-chart"></canvas>
+                  </div>
+                  <div class="chart-container">
+                    <h5>Device & Browser</h5>
+                    <canvas id="device-browser-chart"></canvas>
+                  </div>
+                </div>
+
+                <div class="geography-referrers-grid">
+                  <div class="details-list-card">
+                    <h5>Country Referrals</h5>
+                    <ul class="details-list" id="country-list">
+                      <!-- Populated dynamically -->
+                    </ul>
+                  </div>
+                  <div class="details-list-card">
+                    <h5>Traffic Referrer</h5>
+                    <ul class="details-list" id="referrer-list">
+                      <!-- Populated dynamically -->
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="main-footer">
+      <p>Distributed URL Shortener (Bitly Clone) | View <a href="/docs" target="_blank"><i class="fa-solid fa-book-open"></i> API Swagger Docs</a></p>
+    </footer>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal-overlay hidden">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h3 id="modal-title">Sign In</h3>
+        <button id="close-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="auth-form">
+          <div class="form-group">
+            <label for="auth-email"><i class="fa-solid fa-envelope"></i> Email Address</label>
+            <input type="email" id="auth-email" placeholder="you@example.com" required>
+          </div>
+          <div class="form-group">
+            <label for="auth-password"><i class="fa-solid fa-key"></i> Password</label>
+            <input type="password" id="auth-password" placeholder="At least 6 characters" required>
+          </div>
+          <button type="submit" id="auth-submit-btn" class="btn btn-primary btn-block">Log In</button>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <span id="auth-toggle-msg">New to Shortify?</span>
+        <button id="auth-toggle-btn" class="btn-link">Create an Account</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
